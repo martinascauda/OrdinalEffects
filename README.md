@@ -2,7 +2,6 @@ This repository contains all the code to reproduce the results in [A Latent Caus
 
 - OSEMSource/ contains the source code to OSEM Algorithm
 - OrdinalEffects.R contains the R code for the main functions 
-- PlotEffects_Rain.R contains functions for generating the Rain Plots 
 - Simulation_Binary.R contains the simulation for two binary variables example 
 - Simulation_ThreeVar.R contains the simulation for three binary variables example
 - Simulation/ contains the collected code, data and plot from the simulation with 20 nodes 

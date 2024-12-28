@@ -9,7 +9,6 @@ library(graph)
 library(igraph)
 library(pcalg)
 source("OrdinalEffects.R")
-source("PlotEffects_Rain.R")
 # Modify some of the existing functions in the BiDAG package to accommodate our user-defined functions
 source("./OSEMSource/R/OrdinalScore.R")
 insertSource("./OSEMSource/R/spacefns.R",package = "BiDAG")
@@ -129,9 +128,9 @@ load("./Simulation/ER_Effects_param.RData")
 # }
 
 #Generate list of effects for each int-out couple
-effects4couple_OSEM<-vector(mode="list", 24)
+effects4couple_OSEM<-vector(mode="list", 20)
 for (i in 1:n){
-  effects4couple_OSEM[[i]]<-vector(mode="list",24)
+  effects4couple_OSEM[[i]]<-vector(mode="list",20)
   for (j in 1:n){
     effects4couple_OSEM[[i]][[j]]<-vector(mode="list",500)
     for (k in c(1:500)){
@@ -140,9 +139,9 @@ for (i in 1:n){
   }
 }
 
-effects4couple_param<-vector(mode="list", 24)
+effects4couple_param<-vector(mode="list", 20)
 for (i in 1:n){
-  effects4couple_param[[i]]<-vector(mode="list",24)
+  effects4couple_param[[i]]<-vector(mode="list",20)
   for (j in 1:n){
     effects4couple_param[[i]][[j]]<-vector(mode="list",500)
     for (k in c(1:500)){
@@ -151,52 +150,45 @@ for (i in 1:n){
   }
 }
 
-
-effects4couple <- effects4couple_param
-### Plot Generation, separate for OSEM and Param: one plot for each variable, showing the effect of 
-# switching intervention variable to its lowest to its largest level to all levels of outcome variable
-for (i in 1:n){
-  png(paste0("ER_total_Int_Param",i,".png"), width = 225, height = 465, units='mm', res = 300)
-  lim1<-max(unlist(effects4couple_OSEM[[i]]))
-  lim2<-max(unlist(effects4couple_param[[i]]))
-  lim=round(max(lim1,lim2),1)
-  lim<-round(lim1,1)
-  page<-PlotTot(int=i, lim=lim, n=n)
-  g<-(wrap_plots(page)+plot_layout(ncol=2))
-  print(g)
-  dev.off()
-}
-
-for (i in 17:17){
-  png(paste0("ER_total_Int_New2",i,".png"), width = 1280, height = 720, units='mm', res = 300)
-  lim1<-max(unlist(effects4couple_OSEM[[i]]))
-  lim2<-max(unlist(effects4couple_param[[i]]))
-  lim=round(max(lim1,lim2),1)
-  lim<-round(lim1,1)
-  page<-PlotTotdouble(int=i, lim=lim)
-  g<-(wrap_plots(page)+plot_layout(ncol=5))
-  print(g)
-  dev.off()
-}
-
-
-
-# # Plot to compare OSEM and Param Approach
-# for (i in 17:17){
-#   png(paste0("ER_total_Int_pres",i,".png"), width = 1280, height = 720, units='mm', res = 300)
-#   lim1<-max(unlist(effects4couple_OSEM[[i]]))
-#   lim2<-max(unlist(effects4couple_param[[i]]))
-#   lim=round(max(lim1,lim2),1)
-#   lim<-round(lim1,1)
-#   page<-PlotTotpres(int=i, lim=c(-lim, lim))
-#   g<-(wrap_plots(page)+plot_layout(ncol=5))
-#   print(g)
-#   dev.off()
+# Preallocate the data frame for efficiency 
+# Data Frame to use in MatrixPlot.R
+# Effects17_param <- effects4couple_param[[17]]
+# Effects17_OSEM <- effects4couple_OSEM[[17]]
+# data <- data.frame(
+#   Method = factor(levels = c("OSEM", "Param")),
+#   MaxLevel17 = integer(),
+#   Outcome = integer(),
+#   Level = integer(),
+#   OCE = numeric()
+# )
+# 
+# 
+# row_index <- 1
+# for (i in 1:500) {
+#   for (o in setdiff(1:20, 17)){
+#     #largest level of variable 17 in simulation i 
+#     maxint<- nrow(Effects17_param[[1]][[i]][,,1])
+#     outlevels<-length(Effects17_param[[o]][[i]][1,1,])
+#     for (l in 1:outlevels){
+#       data[row_index, ]<-c("Param", maxint, o,l, Effects17_param[[o]][[i]][,,l][1,maxint])
+#       row_index<-row_index + 1
+#     }
+#   }
 # }
-
-
-
-
+# 
+# for (i in 1:500) {
+#   for (o in setdiff(1:20, 17)){
+#     #largest level of variable 17 in simulation i 
+#     maxint<- nrow(Effects17_OSEM[[1]][[i]][,,1])
+#     outlevels<-length(Effects17_OSEM[[o]][[i]][1,1,])
+#     for (l in 1:outlevels){
+#       data[row_index, ]<-c("OSEM", maxint, o,l, Effects17_OSEM[[o]][[i]][,,l][1,maxint])
+#       row_index<-row_index + 1
+#     }
+#   }
+# }
+# 
+# save(data, file = "Simulation/DataInt17_For_Plots.RData")
 
 
 ###################

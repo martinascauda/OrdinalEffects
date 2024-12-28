@@ -7,7 +7,6 @@ library(corrplot)
 library(igraph)
 library(abind)
 source("ordinalEffects.R")
-source("PlotEffects_Rain.R")
 source("./OSEMSource/R/OrdinalScore.R")
 insertSource("./OSEMSource/R/spacefns.R",package = "BiDAG")
 insertSource("./OSEMSource/R/usrscorefns.R",package = "BiDAG")
@@ -93,31 +92,6 @@ for (i in 1:24){
 }
 
 
-# Load legend
-load("./Application/Psych_legend.RData")
-
-### Plot Generation
-for (i in 1:24){
-  png(paste0("ProvaPsych_total_Int",i,".png"), width = 265, height = 465, units='mm', res = 300)
-  lim<-max(unlist(effects4couple[[i]]))
-  page<-PlotTot(int=i, lim=lim)
-  g<-(wrap_plots(page)+plot_layout(ncol=4))
-  print(g)
-  dev.off()
-}
-
-# Plot for presentation generation
-#old 1860x1060
-png(paste0("Plot_int.png"), width = 1280, height = 720, units='mm', res = 300)
-page<-list()
-for (i in 1:24){
-lim<-c(-0.1,0.1)
-page<-c(page,PlotTotpres(int=i, lim=lim))
-}
-g<-(wrap_plots(page)+plot_layout(ncol=24))
-print(g)
-dev.off()
-
 # Point estimates
 OSEMfit_point <- ordinalStructEM(n, datRogers,
                            usrpar = list(penType = "other",
@@ -173,28 +147,11 @@ corrplot(cpdag_OSEM, method = "shade", is.corr = FALSE,
 title(sub = "OSEM")
 
 
-# Plot Effects of variable 9 on 10
-page<-PlotLocal(effects4couple=effects4couple[[9]][[10]],intvar=9, outvar=10,lim=0.6)
-png(paste0("Effect_Phy_Int9_Out10.png"), width = 465, height = 225, units='mm', res = 300)
-(wrap_plots(page)+plot_layout(ncol=2))
-dev.off()
-
-# Plot Presentation Effects of variable 9 on 10
-page<-PlotLocal(effects4couple=effects4couple[[9]][[10]],intvar=9, outvar=10,lim=0.6)
-png(paste0("Effect_Pres_Int9_Out10.png"), width = 1280, height = 720, units='mm', res = 300)
-(wrap_plots(page)+plot_layout(ncol=3))
-dev.off()
-
-# Plot Effects of variable 17 on 15
-page<-PlotLocal(effects4couple=effects4couple[[17]][[15]],intvar=17, outvar=15,lim=0.8)
-png(paste0("Effect_Phy_Int17_Out15.png"), width = 225, height = 465, units='mm', res = 300)
-wrap_plots(page)+plot_layout(ncol=2)
-dev.off()
 
 
 
 ######### Plots Rain PLot New 
-# Preallocate the data frame for efficiency
+# Preallocate the data frame for plotting Effects 9 on 10 
 Effects910 <- effects4couple[[9]][[10]]
 total_rows <- 500 * 4 * 6  # Total iterations
 data <- data.frame(Level = integer(total_rows),
@@ -218,6 +175,8 @@ for (i in 1:500) {
 }
 data$Change <- as.factor(data$Change)
 data$Level <- as.factor(data$Level)
+
+save(data, file = "Application/DataInt910_For_Plots.RData")
 
 
 
