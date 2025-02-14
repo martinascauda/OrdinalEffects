@@ -69,6 +69,38 @@ generateTRUEOrdinal <- function(N, trueDAG, cuts,V) {
   return(ordinal_data)
   
 }
+
+##' extractCuts(scaled_data, exp_levels,concent_param): 
+##' a function that that converts standardized Gaussian data into ordinal data and saves the cuts adopted ((adapted from convertToOrdinal Luo et. all)
+##' @param scaled_data: Gaussian dataset with each dimension standardized
+##' @param exp_levels: expected number of ordinal levels
+##' @param concent_param: Dirichlet concentration parameter
+##' @return an ordinal dataset and the cuts adopted to generate it 
+extractCuts <- function(scaled_data, exp_levels = 4,concent_param = 2) {
+  n <- ncol(scaled_data)
+  if (exp_levels == 2) {
+    ordinal_levels <- replicate(n,2)
+  } else {
+    ordinal_levels <- replicate(n,sample(c(2:(2 * exp_levels - 2)),1))
+  }
+  ordinal_data <- scaled_data
+  cuts_list <- vector("list", n)  # List to store cuts for each variable
+  for (i in c(1:n)) {
+    
+    check_levels <- ordinal_levels[i] - 1
+    while (check_levels != ordinal_levels[i]) {
+      cuts <- c(-Inf,
+                cutfun(ordinal_levels[i],concent_param),
+                Inf)
+      temp <- cut(scaled_data[,i], simplify2array(cuts), labels = FALSE) - 1
+      check_levels <- length(unique(temp))
+    }
+    ordinal_data[,i] <- temp
+    cuts_list[[i]] <- cuts
+  }
+  colnames(ordinal_data) <- c(1:n)
+  return(list(ordinal_data = ordinal_data, cuts = cuts_list))
+}
   
 ##' getCov(S, DAG):
 ##' a function that determines the Cholesky factorization of a covariance matrix in correlation form
@@ -105,50 +137,62 @@ getCov <- function(S, DAG){
   return(Chol)
 }
 
+# Wrapper function for OwenT to handle infinite inputs
+safeOwenT <- function(h, a) {
+  if (is.infinite(h)) {
+    return(0)  # T(h, a) = 0 if h = ±Inf
+  }
+  if (is.infinite(a)) {
+    # T(h, a) when a = +Inf
+    return(0.5 * pnorm(h) * (1 - pnorm(h)))
+  }
+  if (a == -Inf) {
+    return(0)  # T(h, a) = 0 if a = -Inf
+  }
+  # Call OwenT for finite inputs
+  return(OwenT(h, a))
+}
 
-##' getT(a,alpha,b,rho):
+##' getT(a,alpha,b):
 ##' A function that compute pmvnorm(upper=c(alpha, a/sqrt(1+b^2)), sigma=cbind(c(1, -b/sqrt(1+b^2)),c( -b/sqrt(1+b^2),1)))-1/2*pnorm(alpha) 
 ##' with Owen functions
 ##' @param a: param of BVN integration
 ##' @param alpha: param of BVN integration
 ##' @param b: param in BVN correlation 
 ##' @return a number representing pmvnorm(upper=c(alpha, a/sqrt(1+b^2)), sigma=cbind(c(1, -b/sqrt(1+b^2)),c( -b/sqrt(1+b^2),1)))-1/2*pnorm(alpha)   
-getT=function(a,alpha,b){
-  rho<- sqrt(1+b^2)
-  if ((a == -Inf) | (a==Inf)){
-    if (alpha == a){
-      OwT<- 0
-    } else if (alpha == -a){
-      OwT<-0.5
-    } else{
-      OwT<-as.numeric(a/alpha<0)/2+OwenT(alpha,a/alpha)
+getT <- function(a, alpha, b) {
+  rho <- sqrt(1 + b^2)
+  
+  if (!is.finite(a)) {
+    if (alpha == a) {
+      return(0)
+    } else if (alpha == -a) {
+      return(0.5)
+    } else {
+      return(as.numeric(a / alpha < 0) / 2 + safeOwenT(alpha, a / alpha))
     }
-  } else{ if((alpha == -Inf) | (alpha ==Inf)){
-    if(a == 0){
-      sgn<- +1
-    } else{
-      sgn<-sign(a)
-    }
-    OwT<- as.numeric(sgn!=sign(alpha))/2+OwenT(a / rho, b+((alpha*rho^2) / a))
-  } else{if((a == 0) & (alpha == 0)){
-     #corr<- -b/sqrt(1+b^2)
-     #OwT <- 2*OwenT(0,(1-corr)/sqrt(1-corr*corr))
-  OwT<-OwenT(0,1+b)+OwenT(0, b+rho^2)
-  } else{if(a == 0){
-        sgn<- +1
-      } else{
-        sgn<-sign(a)
-      }
-    if(alpha == 0){
-      sgnal<- +1
-    } else{
-      sgnal<-sign(alpha)
-    }
-      OwT<- as.numeric(sgn!=sgnal)/2+OwenT(alpha,(a)/alpha+b)+OwenT(a / rho, b+((alpha*rho^2) / a))
   }
+  
+  if (!is.finite(alpha)) {
+    sgn <- ifelse(a == 0, +1, sign(a))
+    return(as.numeric(sgn != sign(alpha)) / 2 + safeOwenT(a / rho, b))
   }
+  
+  if (a == 0 && alpha == 0) {
+    return(safeOwenT(0, 1 + b) + safeOwenT(0, b + rho^2))
   }
-  return(OwT)
+  
+  if (a == 0) {
+    return(safeOwenT(0, alpha + b))
+  }
+  
+  if (alpha == 0) {
+    return(safeOwenT(a / rho, b))
+  }
+  
+  sgn <- sign(a)
+  sgnal <- sign(alpha)
+  return(as.numeric(sgn != sgnal) / 2 + safeOwenT(alpha, a / alpha + b) + safeOwenT(a / rho, b + ((alpha * rho^2) / a)))
 }
 
 
@@ -293,31 +337,75 @@ getallEffects<- function(mu, B,V,cuts, intType=c("DIS", "BVN", "OWEN")){
 
 
 
-##' getParam(data,AM)
-##' a function that estimates the ordinal cuts and Gaussian correlation matrix given a sample of DAGs 
+##' getParam(n, AM, data, usrpar):
+##' a function that implements the structural EM algorithm for learning 
+##' just the parameters of Bayesian networks from ordinal data given the graph structure (adapted from ordinalStructEM Luo et. all )
+##' @param n: dimension of the variable
+##' @param AM: Adjacency matrix of the graph structure 
 ##' @param data: ordinal dataset
-##' @param AM: an adjacency matrix of a DAG
-##' @return a list of matrix representing effects of X_i on each level of the other variables    
-getParam<-function(data, AM){
-  param <- scoreparameters("usr",data,usrpar=list(penType = "other",
-                                                             L = 5,
-                                                             lambda = 2,
-                                                  preLevels = NULL))
+##' @param usrpar: list of parameters for ordinal scores
+##' @param computeObservedLL: compute the observed likelihood of the parameters (default: FALSE)
+##' @param iterMCMC_alpha: significance level for the constraint-based initialization (default: 0.05)
+##' @param regsubsets: a boolean value indicating whether subset selection is used in parameter update (default: FALSE)
+##' @return an object of class MCMCtrace
+
+getParam <- function(n, AM, data,
+                            usrpar = list(penType = c("AIC","BIC","other"),
+                                          L = 5,
+                                          lambda = 0,
+                                          preLevels = NULL),
+                            computeObservedLL = FALSE,
+                            iterMCMC_alpha = 0.05,
+                            regsubsets = FALSE) {
   
-  prm<-list()
+  start_time = Sys.time()
+  print("Initializing parameters and DAG...")
+  param <- scoreparameters("usr",data,usrpar = usrpar)
   
-  # Learn the cuts/thresholds
-  prm$cuts <- learnCuts(param)
+  print("SEM iteration starts...")
+  iter <- 0
+  currentBestDAG <- AM
+  results<- list()
   
-  # Compute expected statistics
-  param <- getExpectedStats(param)
+  # Maximum iterations to control runtime (can change)
+  if ((param$lambda <= 1) || (n >= 30)) {
+    nr_EM_iter <- 5
+    nr_plus1it <- 5
+  } else {
+    nr_EM_iter <- 10
+    nr_plus1it <- 10
+  }
   
-  # Parameter update
-  param <- ordinalUpdateParam(param,AM, regsubsets = FALSE)
+  while (iter < nr_EM_iter) {
+    
+    # Compute expected statistics
+    param <- getExpectedStats(param)
+    
+    # Structure update
+    candidateBestDAG <- AM
+    
+    # Parameter update
+    param <- ordinalUpdateParam(param,candidateBestDAG, regsubsets = regsubsets)
+    
+    currentBestDAG <- candidateBestDAG
+    
+    iter <- iter + 1
+  }
+  print("SEM iteration ends...")
   
-  prm$Sigma_hat<-param$Sigma_hat
+  if (computeObservedLL) {
+    print("Calculating observed log-likelihood...")
+    results$observed_score <- observedLL(param) - param$lambda * log(param$N) / 2 * sum(currentBestDAG)
+  }
   
-  return(prm)
+  results$param <- param
+  
+  end_time = Sys.time()
+  print(end_time - start_time)
+  results$runtime <- as.double(end_time - start_time,units = "secs")
+  
+  return(results)
+  
 }
 
 
